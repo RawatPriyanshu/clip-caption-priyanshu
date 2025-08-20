@@ -33,12 +33,22 @@ const Hero = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             {user ? (
               <>
-                <Button variant="hero" size="lg" className="text-lg px-8 py-4">
+                <Button 
+                  variant="hero" 
+                  size="lg" 
+                  className="text-lg px-8 py-4"
+                  onClick={() => navigate('/dashboard')}
+                >
                   <Play className="w-5 h-5 mr-2" />
-                  Start New Project
+                  Go to Dashboard
                 </Button>
-                <Button variant="glow" size="lg" className="text-lg px-8 py-4">
-                  View Dashboard
+                <Button 
+                  variant="glow" 
+                  size="lg" 
+                  className="text-lg px-8 py-4"
+                  onClick={() => navigate('/dashboard')}
+                >
+                  Start New Project
                 </Button>
               </>
             ) : (

@@ -2,11 +2,13 @@ import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { roleData } = useUserRole();
   const navigate = useNavigate();
 
   return (
@@ -37,10 +39,22 @@ const Header = () => {
         <div className="hidden md:flex items-center gap-4">
           {user ? (
             <>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/dashboard')}
+              >
+                Dashboard
+              </Button>
               <span className="text-sm text-muted-foreground">
-                Welcome, {user.email?.split('@')[0]}
+                {roleData?.role && (
+                  <span className="capitalize mr-2 px-2 py-1 bg-accent rounded text-xs">
+                    {roleData.role}
+                  </span>
+                )}
+                {user.email?.split('@')[0]}
               </span>
-              <Button variant="ghost" onClick={signOut}>
+              <Button variant="ghost" size="sm" onClick={signOut}>
                 Sign Out
               </Button>
             </>
@@ -81,8 +95,19 @@ const Header = () => {
             <div className="flex flex-col gap-2 pt-4 border-t border-border">
               {user ? (
                 <>
-                  <span className="text-sm text-muted-foreground">
-                    Welcome, {user.email?.split('@')[0]}
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => navigate('/dashboard')}
+                  >
+                    Dashboard
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2">
+                    {roleData?.role && (
+                      <span className="capitalize mr-2 px-2 py-1 bg-accent rounded text-xs">
+                        {roleData.role}
+                      </span>
+                    )}
+                    {user.email?.split('@')[0]}
                   </span>
                   <Button variant="ghost" onClick={signOut}>
                     Sign Out
