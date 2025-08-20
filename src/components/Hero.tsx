@@ -1,8 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hero-image.jpg";
 
 const Hero = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   return (
     <section className="min-h-screen flex items-center justify-center bg-gradient-subtle pt-16">
       <div className="container mx-auto px-4 text-center">
@@ -27,13 +31,32 @@ const Hero = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button variant="hero" size="lg" className="text-lg px-8 py-4">
-              <Play className="w-5 h-5 mr-2" />
-              Start Captioning Free
-            </Button>
-            <Button variant="glow" size="lg" className="text-lg px-8 py-4">
-              Watch Demo
-            </Button>
+            {user ? (
+              <>
+                <Button variant="hero" size="lg" className="text-lg px-8 py-4">
+                  <Play className="w-5 h-5 mr-2" />
+                  Start New Project
+                </Button>
+                <Button variant="glow" size="lg" className="text-lg px-8 py-4">
+                  View Dashboard
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="hero" 
+                  size="lg" 
+                  className="text-lg px-8 py-4"
+                  onClick={() => navigate('/auth')}
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Start Captioning Free
+                </Button>
+                <Button variant="glow" size="lg" className="text-lg px-8 py-4">
+                  Watch Demo
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Hero Image */}
@@ -56,4 +79,4 @@ const Hero = () => {
   );
 };
 
-export default Hero;
+export { Hero };
