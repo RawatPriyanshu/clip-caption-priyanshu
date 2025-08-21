@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
-  const { roleData } = useUserRole();
+  const { roleData, isAdmin } = useUserRole();
   const navigate = useNavigate();
 
   return (
@@ -46,6 +46,15 @@ const Header = () => {
               >
                 Dashboard
               </Button>
+              {isAdmin() && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => navigate('/admin')}
+                >
+                  Admin
+                </Button>
+              )}
               <span className="text-sm text-muted-foreground">
                 {roleData?.role && (
                   <span className="capitalize mr-2 px-2 py-1 bg-accent rounded text-xs">
@@ -101,6 +110,14 @@ const Header = () => {
                   >
                     Dashboard
                   </Button>
+                  {isAdmin() && (
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => navigate('/admin')}
+                    >
+                      Admin
+                    </Button>
+                  )}
                   <span className="text-sm text-muted-foreground px-2">
                     {roleData?.role && (
                       <span className="capitalize mr-2 px-2 py-1 bg-accent rounded text-xs">
