@@ -54,38 +54,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      // Clean up any existing auth state
-      const cleanupAuthState = () => {
-        Object.keys(localStorage).forEach((key) => {
-          if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-            localStorage.removeItem(key);
-          }
-        });
-      };
+      console.log('Attempting sign in for:', email);
       
-      cleanupAuthState();
-      
-      // Attempt global sign out first
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-      } catch (err) {
-        // Continue even if this fails
-      }
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      console.log('Sign in response:', { data, error });
+
+      if (error) {
+        console.error('Sign in error:', error);
+        return { error };
+      }
+
+      if (data.user && !data.user.email_confirmed_at) {
+        return { 
+          error: { 
+            message: 'Please check your email and click the confirmation link before signing in.' 
+          } 
+        };
+      }
 
       if (data.user) {
-        // Force page reload for clean state
-        window.location.href = '/';
+        console.log('Sign in successful, user:', data.user);
       }
 
       return { error: null };
     } catch (error) {
+      console.error('Sign in catch error:', error);
       return { error };
     }
   };
