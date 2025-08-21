@@ -1,16 +1,24 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { AdminPanel } from '@/components/AdminPanel';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, BarChart3, Settings, Shield } from 'lucide-react';
+import { Users, BarChart3, DollarSign, Shield, TrendingUp } from 'lucide-react';
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, loading: roleLoading, roleData } = useUserRole();
   const navigate = useNavigate();
+
+  // Mock analytics data
+  const [analytics] = useState({
+    totalUsers: 1247,
+    premiumUsers: 89,
+    videosProcessed: 3456,
+    monthlyRevenue: 890
+  });
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -41,49 +49,65 @@ export default function Admin() {
           <div className="text-center">
             <h1 className="text-3xl font-bold mb-2 flex items-center justify-center gap-2">
               <Shield className="h-8 w-8" />
-              Admin Panel
+              Admin Dashboard
             </h1>
             <p className="text-muted-foreground">
-              Manage users, roles, and system settings
+              Monitor system performance and manage users
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3 mb-8">
+          {/* Analytics Cards */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Users</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">-</div>
+                <div className="text-2xl font-bold">{analytics.totalUsers.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">
-                  Active users in system
+                  <TrendingUp className="inline w-3 h-3 mr-1" />
+                  +12% from last month
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Monthly Generations</CardTitle>
+                <CardTitle className="text-sm font-medium">Premium Users</CardTitle>
+                <Users className="h-4 w-4 text-accent" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-accent">{analytics.premiumUsers}</div>
+                <p className="text-xs text-muted-foreground">
+                  {Math.round((analytics.premiumUsers / analytics.totalUsers) * 100)}% conversion rate
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Videos Processed</CardTitle>
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">-</div>
+                <div className="text-2xl font-bold">{analytics.videosProcessed.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">
-                  Generations this month
+                  This month
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">System Status</CardTitle>
-                <Settings className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">Online</div>
+                <div className="text-2xl font-bold text-green-600">${analytics.monthlyRevenue}</div>
                 <p className="text-xs text-muted-foreground">
-                  All systems operational
+                  <TrendingUp className="inline w-3 h-3 mr-1" />
+                  +8% from last month
                 </p>
               </CardContent>
             </Card>
