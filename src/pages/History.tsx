@@ -200,15 +200,12 @@ export default function History() {
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                       {/* Video Info */}
                       <div className="flex items-start gap-4">
-                        <div className="relative">
+                        <div>
                           <img
                             src={video.thumbnail}
                             alt={video.name}
                             className="w-24 h-16 object-cover rounded-lg"
                           />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Play className="w-6 h-6 text-white opacity-80" />
-                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium truncate">{video.name}</h3>
