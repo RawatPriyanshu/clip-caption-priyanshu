@@ -18,31 +18,48 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          metadata_generated: Json | null
+          processing_duration: number | null
           status: string
           type: string
           updated_at: string
           user_id: string
+          video_id: string | null
           video_name: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          metadata_generated?: Json | null
+          processing_duration?: number | null
           status?: string
           type: string
           updated_at?: string
           user_id: string
+          video_id?: string | null
           video_name?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          metadata_generated?: Json | null
+          processing_duration?: number | null
           status?: string
           type?: string
           updated_at?: string
           user_id?: string
+          video_id?: string | null
           video_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "generations_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -92,6 +109,92 @@ export type Database = {
         }
         Relationships: []
       }
+      video_metadata: {
+        Row: {
+          additional_data: Json | null
+          created_at: string
+          description: string | null
+          hashtags: string[] | null
+          id: string
+          platform: string
+          title: string | null
+          updated_at: string
+          video_id: string
+        }
+        Insert: {
+          additional_data?: Json | null
+          created_at?: string
+          description?: string | null
+          hashtags?: string[] | null
+          id?: string
+          platform: string
+          title?: string | null
+          updated_at?: string
+          video_id: string
+        }
+        Update: {
+          additional_data?: Json | null
+          created_at?: string
+          description?: string | null
+          hashtags?: string[] | null
+          id?: string
+          platform?: string
+          title?: string | null
+          updated_at?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_metadata_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          created_at: string
+          duration: number | null
+          file_path: string | null
+          file_size: number
+          id: string
+          name: string
+          original_filename: string
+          processing_status: string
+          thumbnail_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: number | null
+          file_path?: string | null
+          file_size: number
+          id?: string
+          name: string
+          original_filename: string
+          processing_status?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration?: number | null
+          file_path?: string | null
+          file_size?: number
+          id?: string
+          name?: string
+          original_filename?: string
+          processing_status?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -104,6 +207,31 @@ export type Database = {
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_user_videos: {
+        Args: { _user_id: string }
+        Returns: {
+          created_at: string
+          duration: number
+          file_size: number
+          id: string
+          metadata_count: number
+          name: string
+          original_filename: string
+          processing_status: string
+          thumbnail_url: string
+        }[]
+      }
+      get_video_metadata: {
+        Args: { _video_id: string }
+        Returns: {
+          additional_data: Json
+          created_at: string
+          description: string
+          hashtags: string[]
+          platform: string
+          title: string
+        }[]
       }
       has_role: {
         Args: {
