@@ -23,8 +23,8 @@ export default function Admin() {
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
-    } else if (!roleLoading && !isAdmin()) {
-      navigate('/dashboard');
+    } else if (!roleLoading && (!isAdmin() || !user.email?.endsWith('@gmail.com'))) {
+      navigate('/');
     }
   }, [user, authLoading, isAdmin, roleLoading, navigate]);
 

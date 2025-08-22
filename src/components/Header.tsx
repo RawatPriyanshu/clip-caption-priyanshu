@@ -37,7 +37,7 @@ const Header = () => {
     { name: 'Upload', path: '/', icon: Upload, show: !!user },
     { name: 'History', path: '/history', icon: Home, show: !!user },
     { name: 'Settings', path: '/settings', icon: Settings, show: !!user },
-    { name: 'Admin', path: '/admin', icon: Users, show: user && isAdmin() },
+    { name: 'Admin', path: '/admin', icon: Users, show: user && isAdmin() && user.email?.endsWith('@gmail.com') },
   ];
 
   const getUserDisplay = () => {
