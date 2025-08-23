@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
+import { useVideos } from '@/hooks/useVideos';
 
 interface VideoFile {
   id: string;
@@ -31,6 +32,7 @@ export default function Upload() {
   const { roleData, canGenerate } = useUserRole();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { uploadVideo, generateMetadata: generateVideoMetadata } = useVideos();
 
   const [uploadedVideos, setUploadedVideos] = useState<VideoFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -118,48 +120,78 @@ export default function Upload() {
     setProcessing(true);
     setProgress(0);
 
-    // Simulate metadata generation with progress
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
+    try {
+      // Upload videos and generate metadata for each
+      const results = [];
+      const totalVideos = uploadedVideos.length;
+      
+      for (let i = 0; i < uploadedVideos.length; i++) {
+        const video = uploadedVideos[i];
+        setProgress((i / totalVideos) * 50); // Upload progress
+
+        try {
+          // Upload video to Supabase storage and create database record
+          const videoRecord = await uploadVideo(video.file, video.name);
+          
+          // Generate metadata for this video
+          const metadata = await generateVideoMetadata(
+            videoRecord.id,
+            creatorName,
+            videoTopic,
+            language,
+            keywords
+          );
+          
+          results.push(...metadata);
+          
+        } catch (error) {
+          console.error('Error processing video:', error);
+          toast({
+            title: "Upload failed",
+            description: `Failed to process ${video.name}`,
+            variant: "destructive"
+          });
         }
-        return prev + 10;
+        
+        setProgress(50 + ((i + 1) / totalVideos) * 50); // Processing progress
+      }
+
+      // Convert to the expected format for display
+      const platforms = ['youtube', 'instagram', 'tiktok'];
+      const formattedMetadata: GeneratedMetadata[] = platforms.map(platform => {
+        const platformData = results.find(r => r.platform === platform) || {};
+        return {
+          platform: platform as any,
+          title: platformData.title || `${videoTopic} - ${creatorName}`,
+          description: platformData.description || `Content about ${videoTopic}`,
+          hashtags: platformData.hashtags || keywords.split(',').map(k => k.trim()).filter(k => k)
+        };
       });
-    }, 300);
 
-    setTimeout(() => {
-      const mockMetadata: GeneratedMetadata[] = [
-        {
-          platform: 'youtube',
-          title: `${videoTopic} - ${creatorName} Tutorial`,
-          description: `Learn everything about ${videoTopic} in this comprehensive guide by ${creatorName}. Perfect for beginners and advanced users alike.`,
-          hashtags: keywords.split(',').map(k => k.trim()).filter(k => k).slice(0, 5)
-        },
-        {
-          platform: 'instagram',
-          title: `${videoTopic} Tips & Tricks`,
-          description: `Quick ${videoTopic} tips from ${creatorName} 🔥`,
-          hashtags: ['tips', 'tutorial', 'learn', ...keywords.split(',').map(k => k.trim()).filter(k => k).slice(0, 3)]
-        },
-        {
-          platform: 'tiktok',
-          title: `${videoTopic} in 60 seconds`,
-          description: `Master ${videoTopic} quickly with ${creatorName}`,
-          hashtags: ['viral', 'trending', 'tutorial', ...keywords.split(',').map(k => k.trim()).filter(k => k).slice(0, 2)]
-        }
-      ];
-
-      setGeneratedMetadata(mockMetadata);
-      setProcessing(false);
-      setProgress(0);
+      setGeneratedMetadata(formattedMetadata);
+      setProgress(100);
       
       toast({
-        title: "Metadata generated successfully!",
-        description: "Your metadata is ready for all platforms.",
+        title: "Videos uploaded and metadata generated!",
+        description: "Your videos have been processed successfully.",
       });
-    }, 3000);
+
+      // Clear uploaded videos after successful processing
+      setTimeout(() => {
+        setUploadedVideos([]);
+        setProgress(0);
+      }, 1000);
+
+    } catch (error) {
+      console.error('Error in metadata generation:', error);
+      toast({
+        title: "Processing failed",
+        description: "There was an error processing your videos.",
+        variant: "destructive"
+      });
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const copyToClipboard = async (text: string, label: string) => {
