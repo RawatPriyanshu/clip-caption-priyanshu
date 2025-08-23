@@ -280,11 +280,13 @@ export default function Upload() {
                     className="hidden"
                     id="video-upload"
                   />
-                  <Label htmlFor="video-upload">
-                    <Button variant="outline" className="cursor-pointer">
-                      Choose Files
-                    </Button>
-                  </Label>
+                  <Button 
+                    variant="outline" 
+                    className="cursor-pointer"
+                    onClick={() => document.getElementById('video-upload')?.click()}
+                  >
+                    Choose Files
+                  </Button>
                 </div>
 
                 {/* Uploaded Videos List */}
