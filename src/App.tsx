@@ -24,12 +24,12 @@ const App = () => (
         <BrowserRouter>
           <Header />
           <Routes>
-            <Route path="/" element={<Upload />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/upload" element={<Upload />} />
             <Route path="/history" element={<History />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<Admin />} />
-            <Route path="/landing" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

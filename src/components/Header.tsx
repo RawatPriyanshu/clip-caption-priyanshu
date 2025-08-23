@@ -34,7 +34,7 @@ const Header = () => {
   };
 
   const navItems = [
-    { name: 'Upload', path: '/', icon: Upload, show: !!user },
+    { name: 'Upload', path: '/upload', icon: Upload, show: !!user },
     { name: 'History', path: '/history', icon: Home, show: !!user },
     { name: 'Settings', path: '/settings', icon: Settings, show: !!user },
     { name: 'Admin', path: '/admin', icon: Users, show: user && isAdmin() && user.email?.endsWith('@gmail.com') },
