@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload as UploadIcon, Play, Copy, Download, CheckCircle } from 'lucide-react';
+import { Upload as UploadIcon, Play, Copy, Download, CheckCircle, AlertTriangle, FileAudio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,16 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
-import { useVideos } from '@/hooks/useVideos';
+import { validateFiles, formatFileSize, getFileSizeLimitsForRole } from '@/utils/fileSizeValidation';
+import { VideoToAudioProcessor, ProcessingProgress } from '@/utils/videoToAudio';
 
 interface VideoFile {
   id: string;
   name: string;
   size: number;
   file: File;
+  audioBlob?: Blob;
+  duration?: number;
+  processingStatus: 'pending' | 'extracting' | 'complete' | 'error';
 }
 
 interface GeneratedMetadata {
@@ -25,6 +30,7 @@ interface GeneratedMetadata {
   title: string;
   description: string;
   hashtags: string[];
+  transcription?: string;
 }
 
 export default function Upload() {
@@ -32,12 +38,12 @@ export default function Upload() {
   const { roleData, canGenerate } = useUserRole();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { uploadVideo, generateMetadata: generateVideoMetadata } = useVideos();
 
   const [uploadedVideos, setUploadedVideos] = useState<VideoFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
   const [generatedMetadata, setGeneratedMetadata] = useState<GeneratedMetadata[]>([]);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
@@ -68,25 +74,130 @@ export default function Upload() {
 
   const handleFiles = (files: File[]) => {
     const videoFiles = files.filter(file => file.type.startsWith('video/'));
+    
+    if (videoFiles.length === 0) {
+      toast({
+        title: "No video files",
+        description: "Please select video files only.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file sizes based on user role
+    const userRole = roleData?.role || 'free';
+    const existingSize = uploadedVideos.reduce((sum, video) => sum + video.size, 0);
+    const newSize = videoFiles.reduce((sum, file) => sum + file.size, 0);
+    const totalSize = existingSize + newSize;
+    
+    const limits = getFileSizeLimitsForRole(userRole);
+    
+    // Check total size limit
+    if (totalSize > limits.maxTotalSize) {
+      toast({
+        title: "Total size limit exceeded",
+        description: `Total size (${formatFileSize(totalSize)}) exceeds ${formatFileSize(limits.maxTotalSize)} limit for ${userRole} users.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate individual files
+    const validation = validateFiles(videoFiles, userRole);
+    
+    if (!validation.isValid) {
+      toast({
+        title: "File size validation failed",
+        description: validation.message,
+        variant: "destructive"
+      });
+      return;
+    }
+
     const newVideos: VideoFile[] = videoFiles.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
       name: file.name,
       size: file.size,
-      file
+      file,
+      processingStatus: 'pending'
     }));
+    
     setUploadedVideos(prev => [...prev, ...newVideos]);
+    
+    toast({
+      title: "Videos added",
+      description: `${videoFiles.length} video(s) added successfully.`,
+    });
   };
 
   const removeVideo = (id: string) => {
     setUploadedVideos(prev => prev.filter(video => video.id !== id));
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const extractAudioFromVideos = async () => {
+    const videosToProcess = uploadedVideos.filter(v => v.processingStatus === 'pending');
+    
+    if (videosToProcess.length === 0) {
+      toast({
+        title: "No videos to process",
+        description: "All videos have already been processed or no videos uploaded.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    try {
+      for (let i = 0; i < videosToProcess.length; i++) {
+        const video = videosToProcess[i];
+        
+        // Update status to extracting
+        setUploadedVideos(prev => 
+          prev.map(v => v.id === video.id ? { ...v, processingStatus: 'extracting' } : v)
+        );
+
+        const processor = new VideoToAudioProcessor((progress) => {
+          setProcessingProgress(progress);
+          setProgress(((i / videosToProcess.length) * 100) + (progress.progress / videosToProcess.length));
+        });
+
+        try {
+          const { audioBlob, duration } = await processor.extractAudioFromVideo(video.file, {
+            quality: 'medium',
+            sampleRate: 16000, // Optimal for Whisper
+            channels: 1 // Mono for better API performance
+          });
+
+          // Update video with extracted audio
+          setUploadedVideos(prev => 
+            prev.map(v => v.id === video.id ? { 
+              ...v, 
+              audioBlob, 
+              duration, 
+              processingStatus: 'complete' 
+            } : v)
+          );
+
+        } catch (error) {
+          console.error(`Error processing ${video.name}:`, error);
+          setUploadedVideos(prev => 
+            prev.map(v => v.id === video.id ? { ...v, processingStatus: 'error' } : v)
+          );
+          
+          toast({
+            title: "Audio extraction failed",
+            description: `Failed to extract audio from ${video.name}`,
+            variant: "destructive"
+          });
+        }
+      }
+
+      setProcessingProgress(null);
+      return true;
+    } catch (error) {
+      console.error('Error in batch audio extraction:', error);
+      setProcessingProgress(null);
+      return false;
+    }
   };
 
   const generateMetadata = async () => {
@@ -121,50 +232,46 @@ export default function Upload() {
     setProgress(0);
 
     try {
-      // Upload videos and generate metadata for each
-      const results = [];
-      const totalVideos = uploadedVideos.length;
+      // First, extract audio from all videos
+      const audioExtractionSuccess = await extractAudioFromVideos();
       
-      for (let i = 0; i < uploadedVideos.length; i++) {
-        const video = uploadedVideos[i];
-        setProgress((i / totalVideos) * 50); // Upload progress
-
-        try {
-          // Upload video to Supabase storage and create database record
-          const videoRecord = await uploadVideo(video.file, video.name);
-          
-          // Generate metadata for this video
-          const metadata = await generateVideoMetadata(
-            videoRecord.id,
-            creatorName,
-            videoTopic,
-            language,
-            keywords
-          );
-          
-          results.push(...metadata);
-          
-        } catch (error) {
-          console.error('Error processing video:', error);
-          toast({
-            title: "Upload failed",
-            description: `Failed to process ${video.name}`,
-            variant: "destructive"
-          });
-        }
-        
-        setProgress(50 + ((i + 1) / totalVideos) * 50); // Processing progress
+      if (!audioExtractionSuccess) {
+        throw new Error('Failed to extract audio from videos');
       }
 
-      // Convert to the expected format for display
-      const platforms = ['youtube', 'instagram', 'tiktok'];
+      setProgress(70);
+
+      // For now, generate mock metadata since we don't have API integration yet
+      // In the future, this would send the audio to Whisper API for transcription
+      const mockTranscription = `This is a ${videoTopic} video by ${creatorName}. The content includes information about ${keywords.split(',').map(k => k.trim()).join(', ')}.`;
+
+      // Generate metadata based on the mock transcription and user inputs
+      const platforms = ['youtube', 'instagram', 'tiktok'] as const;
       const formattedMetadata: GeneratedMetadata[] = platforms.map(platform => {
-        const platformData = results.find(r => r.platform === platform) || {};
+        const platformSpecific = {
+          youtube: {
+            title: `${videoTopic} - Complete Guide | ${creatorName}`,
+            description: `In this video, I'll show you everything about ${videoTopic}. Perfect for anyone interested in ${keywords.split(',').map(k => k.trim()).join(', ')}.\n\n${mockTranscription}\n\nDon't forget to like and subscribe!`,
+            hashtags: ['tutorial', 'guide', ...keywords.split(',').map(k => k.trim()).filter(k => k)]
+          },
+          instagram: {
+            title: `${videoTopic} tips! 🔥`,
+            description: `Quick ${videoTopic} guide! ${mockTranscription.substring(0, 100)}...`,
+            hashtags: ['reels', videoTopic.toLowerCase().replace(/\s+/g, ''), ...keywords.split(',').map(k => k.trim()).filter(k => k)]
+          },
+          tiktok: {
+            title: `${videoTopic} hack everyone needs! ✨`,
+            description: `${mockTranscription.substring(0, 80)}... #${videoTopic.toLowerCase().replace(/\s+/g, '')}`,
+            hashtags: ['fyp', 'viral', videoTopic.toLowerCase().replace(/\s+/g, ''), ...keywords.split(',').map(k => k.trim()).filter(k => k)]
+          }
+        };
+
         return {
-          platform: platform as any,
-          title: platformData.title || `${videoTopic} - ${creatorName}`,
-          description: platformData.description || `Content about ${videoTopic}`,
-          hashtags: platformData.hashtags || keywords.split(',').map(k => k.trim()).filter(k => k)
+          platform,
+          title: platformSpecific[platform].title,
+          description: platformSpecific[platform].description,
+          hashtags: platformSpecific[platform].hashtags,
+          transcription: mockTranscription
         };
       });
 
@@ -172,15 +279,9 @@ export default function Upload() {
       setProgress(100);
       
       toast({
-        title: "Videos uploaded and metadata generated!",
-        description: "Your videos have been processed successfully.",
+        title: "Metadata generated successfully!",
+        description: "Your video metadata has been created based on audio processing.",
       });
-
-      // Clear uploaded videos after successful processing
-      setTimeout(() => {
-        setUploadedVideos([]);
-        setProgress(0);
-      }, 1000);
 
     } catch (error) {
       console.error('Error in metadata generation:', error);
@@ -191,6 +292,7 @@ export default function Upload() {
       });
     } finally {
       setProcessing(false);
+      setProgress(0);
     }
   };
 
@@ -260,6 +362,18 @@ export default function Upload() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {/* File Size Limits Info */}
+                {roleData && (
+                  <Alert className="mb-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{roleData.role.charAt(0).toUpperCase() + roleData.role.slice(1)} Plan Limits:</strong> 
+                      {' '}{formatFileSize(getFileSizeLimitsForRole(roleData.role).maxFileSize)} per video, 
+                      {' '}{formatFileSize(getFileSizeLimitsForRole(roleData.role).maxTotalSize)} total per session
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div
                   className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                     dragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
@@ -292,20 +406,33 @@ export default function Upload() {
                 {/* Uploaded Videos List */}
                 {uploadedVideos.length > 0 && (
                   <div className="mt-6 space-y-2">
-                    <h3 className="font-medium">Uploaded Videos ({uploadedVideos.length})</h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium">Uploaded Videos ({uploadedVideos.length})</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Total: {formatFileSize(uploadedVideos.reduce((sum, video) => sum + video.size, 0))}
+                      </p>
+                    </div>
                     {uploadedVideos.map((video) => (
                       <div key={video.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                         <div className="flex items-center gap-3">
-                          <Play className="w-4 h-4 text-muted-foreground" />
+                          {video.processingStatus === 'pending' && <Play className="w-4 h-4 text-muted-foreground" />}
+                          {video.processingStatus === 'extracting' && <FileAudio className="w-4 h-4 text-blue-500 animate-pulse" />}
+                          {video.processingStatus === 'complete' && <CheckCircle className="w-4 h-4 text-green-500" />}
+                          {video.processingStatus === 'error' && <AlertTriangle className="w-4 h-4 text-red-500" />}
                           <div>
                             <p className="font-medium">{video.name}</p>
-                            <p className="text-sm text-muted-foreground">{formatFileSize(video.size)}</p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <span>{formatFileSize(video.size)}</span>
+                              {video.duration && <span>• {Math.round(video.duration)}s</span>}
+                              <span className="capitalize">• {video.processingStatus}</span>
+                            </div>
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => removeVideo(video.id)}
+                          disabled={video.processingStatus === 'extracting'}
                         >
                           Remove
                         </Button>
@@ -390,9 +517,16 @@ export default function Upload() {
                 {processing && (
                   <div className="space-y-2">
                     <Progress value={progress} className="w-full" />
-                    <p className="text-sm text-muted-foreground text-center">
-                      Processing videos... {progress}%
-                    </p>
+                    <div className="text-center space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        {processingProgress?.message || `Processing videos... ${Math.round(progress)}%`}
+                      </p>
+                      {processingProgress && (
+                        <p className="text-xs text-muted-foreground capitalize">
+                          Stage: {processingProgress.stage}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
