@@ -85,7 +85,15 @@ export const useVideos = () => {
 
       if (dbError) throw dbError;
 
-      return videoData;
+      // Update status to completed since upload was successful
+      const { error: updateError } = await supabase
+        .from('videos')
+        .update({ processing_status: 'completed' })
+        .eq('id', videoData.id);
+
+      if (updateError) throw updateError;
+
+      return { ...videoData, processing_status: 'completed' };
     } catch (error) {
       console.error('Error uploading video:', error);
       throw error;
