@@ -86,8 +86,12 @@ export default function Upload() {
           prev.map(v => v.id === videoFile.id ? { ...v, processingStatus: 'uploading' } : v)
         );
 
+        console.log('Starting upload for video:', videoFile.name);
+        
         // Upload to Supabase storage and create database record
         const uploadedVideo = await uploadVideo(videoFile.file, videoFile.name);
+        
+        console.log('Upload completed successfully:', uploadedVideo);
         
         // Update with uploaded video ID and mark as complete
         setUploadedVideos(prev => 
@@ -105,6 +109,7 @@ export default function Upload() {
 
       } catch (error) {
         console.error('Upload failed for', videoFile.name, error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         
         // Update status to error
         setUploadedVideos(prev => 
@@ -113,7 +118,7 @@ export default function Upload() {
 
         toast({
           title: "Upload failed",
-          description: `Failed to upload ${videoFile.name}.`,
+          description: `Failed to upload ${videoFile.name}: ${error?.message || 'Unknown error'}`,
           variant: "destructive"
         });
       }

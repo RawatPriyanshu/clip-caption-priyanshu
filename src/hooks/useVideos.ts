@@ -59,15 +59,23 @@ export const useVideos = () => {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      console.log('Starting video upload for:', videoName, 'User:', user.id);
+      
       // Upload file to Supabase storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
       
-      const { error: uploadError } = await supabase.storage
+      console.log('Uploading to storage with filename:', fileName);
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('videos')
         .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw uploadError;
+      }
+      
+      console.log('Storage upload successful:', uploadData);
 
       // Create video record in database
       const { data: videoData, error: dbError } = await supabase
