@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Menu, X, Upload, Home, Settings, Users, Moon, Sun } from "lucide-react";
+import { Menu, X, Upload, Home, Settings, Users, Moon, Sun, Layers } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -35,6 +35,7 @@ const Header = () => {
 
   const navItems = [
     { name: 'Upload', path: '/upload', icon: Upload, show: !!user },
+    { name: 'Batch', path: '/batch', icon: Layers, show: !!user },
     { name: 'History', path: '/history', icon: Home, show: !!user },
     { name: 'Settings', path: '/settings', icon: Settings, show: !!user },
     { name: 'Admin', path: '/admin', icon: Users, show: user && isAdmin() && user.email?.endsWith('@gmail.com') },

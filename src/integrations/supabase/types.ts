@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      batch_jobs: {
+        Row: {
+          completed_at: string | null
+          completed_items: number
+          created_at: string
+          failed_items: number
+          id: string
+          job_config: Json | null
+          job_type: string
+          name: string
+          started_at: string | null
+          status: string
+          total_items: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_items?: number
+          created_at?: string
+          failed_items?: number
+          id?: string
+          job_config?: Json | null
+          job_type?: string
+          name: string
+          started_at?: string | null
+          status?: string
+          total_items?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_items?: number
+          created_at?: string
+          failed_items?: number
+          id?: string
+          job_config?: Json | null
+          job_type?: string
+          name?: string
+          started_at?: string | null
+          status?: string
+          total_items?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       generations: {
         Row: {
           created_at: string
@@ -84,6 +132,78 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      queue_items: {
+        Row: {
+          batch_job_id: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          max_retries: number
+          metadata: Json | null
+          priority: number
+          processing_stage: string | null
+          progress: number
+          retry_count: number
+          stage_progress: number
+          started_at: string | null
+          status: string
+          updated_at: string
+          video_id: string | null
+        }
+        Insert: {
+          batch_job_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          max_retries?: number
+          metadata?: Json | null
+          priority?: number
+          processing_stage?: string | null
+          progress?: number
+          retry_count?: number
+          stage_progress?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          video_id?: string | null
+        }
+        Update: {
+          batch_job_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          max_retries?: number
+          metadata?: Json | null
+          priority?: number
+          processing_stage?: string | null
+          progress?: number
+          retry_count?: number
+          stage_progress?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queue_items_batch_job_id_fkey"
+            columns: ["batch_job_id"]
+            isOneToOne: false
+            referencedRelation: "batch_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "queue_items_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -200,9 +320,46 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_batch_queue_items: {
+        Args: { _batch_job_id: string }
+        Returns: {
+          completed_at: string
+          created_at: string
+          error_message: string
+          id: string
+          max_retries: number
+          metadata: Json
+          priority: number
+          processing_stage: string
+          progress: number
+          retry_count: number
+          stage_progress: number
+          started_at: string
+          status: string
+          video_id: string
+          video_name: string
+        }[]
+      }
       get_monthly_generation_count: {
         Args: { _user_id: string }
         Returns: number
+      }
+      get_user_batch_jobs: {
+        Args: { _user_id: string }
+        Returns: {
+          completed_at: string
+          completed_items: number
+          created_at: string
+          failed_items: number
+          id: string
+          job_config: Json
+          job_type: string
+          name: string
+          progress: number
+          started_at: string
+          status: string
+          total_items: number
+        }[]
       }
       get_user_role: {
         Args: { _user_id: string }
@@ -239,6 +396,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      update_batch_job_progress: {
+        Args: { _batch_job_id: string }
+        Returns: undefined
       }
     }
     Enums: {
