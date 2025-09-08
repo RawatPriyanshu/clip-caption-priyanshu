@@ -9,6 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { EnhancedProgress } from '@/components/ui/enhanced-progress';
+import { ResponsiveContainer } from '@/components/ui/responsive-container';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useVideos } from '@/hooks/useVideos';
@@ -70,6 +74,11 @@ export default function Upload() {
   // Transcription settings
   const [enableTranscription, setEnableTranscription] = useState(false);
   const [transcriptionLanguage, setTranscriptionLanguage] = useState('en');
+
+  if (!user) {
+    navigate('/auth');
+    return null;
+  }
 
   const handleFiles = useCallback(async (files: File[]) => {
     const validation = validateFiles(files, roleData?.role || 'free');
@@ -626,17 +635,44 @@ export default function Upload() {
             )}
 
             {/* Progress Indicators */}
-            {processing && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Overall Progress</span>
-                  <span>{progress}%</span>
+            {(processing || isTranscribing) && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium">
+                    {isTranscribing ? 'Transcribing...' : 'Processing...'}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {Math.round(progress)}%
+                  </span>
                 </div>
-                <Progress value={progress} className="w-full" />
                 
+                <EnhancedProgress 
+                  value={progress} 
+                  variant={progress === 100 ? "success" : "default"}
+                  animated={progress > 0 && progress < 100}
+                  className="w-full"
+                />
+                
+                {/* Transcription Progress */}
+                {transcriptionProgress && (
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <div className="flex items-center gap-2">
+                      <LoadingSpinner size="sm" />
+                      <span>{transcriptionProgress.message}</span>
+                    </div>
+                    <EnhancedProgress 
+                      value={transcriptionProgress.progress} 
+                      size="sm"
+                      variant="default"
+                      animated
+                    />
+                  </div>
+                )}
+                
+                {/* Audio Processing Progress */}
                 {processingProgress && (
                   <div className="text-sm text-muted-foreground">
-                    {processingProgress.stage}: {processingProgress.message}
+                    <span className="capitalize">{processingProgress.stage}:</span> {processingProgress.message}
                   </div>
                 )}
               </div>
