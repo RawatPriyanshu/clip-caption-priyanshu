@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
 import { useAuth } from './useAuth';
+import { metadataGenerator } from '@/services/metadataGenerator';
 
 export interface VideoRecord {
   id: string;
@@ -178,43 +179,23 @@ export const useVideos = () => {
 
       if (genError) throw genError;
 
-      // For now, create mock metadata - this will be replaced with real AI generation
-      const platforms = ['youtube', 'instagram', 'tiktok'];
-      const keywordArray = keywords.split(',').map(k => k.trim()).filter(k => k);
+      // Generate platform-specific metadata using the metadata generator
+      const generatedMetadata = metadataGenerator.generatePlatformMetadata({
+        creatorName,
+        videoTopic,
+        language,
+        keywords
+      });
 
-      const metadataPromises = platforms.map(platform => {
-        let title, description, hashtags;
-
-        switch (platform) {
-          case 'youtube':
-            title = `${videoTopic} - ${creatorName} Tutorial`;
-            description = `Learn everything about ${videoTopic} in this comprehensive guide by ${creatorName}. Perfect for beginners and advanced users alike.`;
-            hashtags = keywordArray.slice(0, 5);
-            break;
-          case 'instagram':
-            title = `${videoTopic} Tips & Tricks`;
-            description = `Quick ${videoTopic} tips from ${creatorName} 🔥`;
-            hashtags = ['tips', 'tutorial', 'learn', ...keywordArray.slice(0, 3)];
-            break;
-          case 'tiktok':
-            title = `${videoTopic} in 60 seconds`;
-            description = `Master ${videoTopic} quickly with ${creatorName}`;
-            hashtags = ['viral', 'trending', 'tutorial', ...keywordArray.slice(0, 2)];
-            break;
-          default:
-            title = videoTopic;
-            description = `Content about ${videoTopic}`;
-            hashtags = keywordArray;
-        }
-
+      const metadataPromises = generatedMetadata.map(metadata => {
         return supabase
           .from('video_metadata')
           .insert({
             video_id: videoId,
-            platform,
-            title,
-            description,
-            hashtags
+            platform: metadata.platform.toLowerCase(),
+            title: metadata.title,
+            description: metadata.description,
+            hashtags: metadata.hashtags
           });
       });
 
