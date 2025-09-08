@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload as UploadIcon, Play, Copy, Download, CheckCircle, AlertTriangle, FileAudio } from 'lucide-react';
+import { Upload as UploadIcon, Play, Copy, Download, CheckCircle, AlertTriangle, FileAudio, Subtitles, Languages } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useVideos } from '@/hooks/useVideos';
 import { useToast } from '@/hooks/use-toast';
+import { useTranscription } from '@/hooks/useTranscription';
 import { validateFiles, formatFileSize, getFileSizeLimitsForRole } from '@/utils/fileSizeValidation';
 import { VideoToAudioProcessor, ProcessingProgress } from '@/utils/videoToAudio';
 
@@ -41,6 +42,16 @@ export default function Upload() {
   const { uploadVideo, generateMetadata: saveMetadata, loading: videosLoading } = useVideos();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  const {
+    isTranscribing,
+    transcriptionProgress,
+    transcriptionResult,
+    transcribeVideo,
+    generateSRT,
+    getSupportedLanguages,
+    clearTranscription
+  } = useTranscription();
 
   const [uploadedVideos, setUploadedVideos] = useState<VideoFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -55,6 +66,10 @@ export default function Upload() {
   const [videoTopic, setVideoTopic] = useState('');
   const [language, setLanguage] = useState('en');
   const [keywords, setKeywords] = useState('');
+  
+  // Transcription settings
+  const [enableTranscription, setEnableTranscription] = useState(false);
+  const [transcriptionLanguage, setTranscriptionLanguage] = useState('en');
 
   const handleFiles = useCallback(async (files: File[]) => {
     const validation = validateFiles(files, roleData?.role || 'free');
@@ -215,17 +230,51 @@ export default function Upload() {
 
     setProcessing(true);
     setProgress(0);
+    clearTranscription(); // Clear any previous transcription results
 
     try {
-      // Step 1: Audio extraction (40% of progress)
-      setProgress(10);
-      await extractAudioFromVideos(completedVideos);
-      setProgress(40);
+      let transcriptionText = '';
+      let currentVideoName = '';
 
-      // Step 2: Generate and save metadata to database (60% of progress)
+      // Step 1: Transcribe videos if enabled
+      if (enableTranscription && completedVideos.length > 0) {
+        setProgress(10);
+        
+        for (let i = 0; i < completedVideos.length; i++) {
+          const video = completedVideos[i];
+          currentVideoName = video.name;
+          
+          try {
+            const result = await transcribeVideo(video.file, {
+              language: transcriptionLanguage,
+              returnSegments: true
+            });
+            
+            if (result) {
+              transcriptionText += `${completedVideos.length > 1 ? `[${video.name}]\n` : ''}${result.text}\n`;
+              
+              // Generate and download SRT for each video
+              generateSRT(result, video.name.replace(/\.[^/.]+$/, ''));
+            }
+          } catch (error) {
+            console.error(`Transcription failed for ${video.name}:`, error);
+            toast({
+              title: "Transcription Warning",
+              description: `Failed to transcribe ${video.name}. Continuing with metadata generation.`,
+              variant: "default"
+            });
+          }
+          
+          setProgress(10 + (i + 1) / completedVideos.length * 30);
+        }
+      }
+
+      // Step 2: Extract audio (if not already done for transcription)
+      setProgress(40);
+      await extractAudioFromVideos(completedVideos);
       setProgress(60);
-      
-      // Generate metadata for the first uploaded video (in the future, handle multiple videos)
+
+      // Step 3: Generate and save metadata to database
       const firstVideo = completedVideos[0];
       if (firstVideo.uploadedVideoId) {
         await saveMetadata(
@@ -239,25 +288,26 @@ export default function Upload() {
       
       setProgress(80);
 
-      // Step 3: Create display metadata for UI
+      // Step 4: Create display metadata for UI
       const platforms = ['youtube', 'instagram', 'tiktok'] as const;
-      const mockTranscription = `This video covers ${videoTopic} with expert guidance from ${creatorName}. Key topics include practical tips and techniques that viewers can apply immediately.`;
+      const displayTranscription = transcriptionText.trim() || 
+        `This video covers ${videoTopic} with expert guidance from ${creatorName}. Key topics include practical tips and techniques that viewers can apply immediately.`;
       
       const formattedMetadata: GeneratedMetadata[] = platforms.map(platform => {
         const platformSpecific = {
           youtube: {
             title: `${videoTopic} - Complete Guide | ${creatorName}`,
-            description: `In this video, I'll show you everything about ${videoTopic}. Perfect for anyone interested in ${keywords.split(',').map(k => k.trim()).join(', ')}.\n\n${mockTranscription}\n\nDon't forget to like and subscribe!`,
+            description: `In this video, I'll show you everything about ${videoTopic}. Perfect for anyone interested in ${keywords.split(',').map(k => k.trim()).join(', ')}.\n\n${displayTranscription}\n\nDon't forget to like and subscribe!`,
             hashtags: ['tutorial', 'guide', ...keywords.split(',').map(k => k.trim()).filter(k => k)]
           },
           instagram: {
             title: `${videoTopic} tips! 🔥`,
-            description: `Quick ${videoTopic} guide! ${mockTranscription.substring(0, 100)}...`,
+            description: `Quick ${videoTopic} guide! ${displayTranscription.substring(0, 100)}...`,
             hashtags: ['reels', videoTopic.toLowerCase().replace(/\s+/g, ''), ...keywords.split(',').map(k => k.trim()).filter(k => k)]
           },
           tiktok: {
             title: `${videoTopic} hack everyone needs! ✨`,
-            description: `${mockTranscription.substring(0, 80)}... #${videoTopic.toLowerCase().replace(/\s+/g, '')}`,
+            description: `${displayTranscription.substring(0, 80)}... #${videoTopic.toLowerCase().replace(/\s+/g, '')}`,
             hashtags: ['fyp', 'viral', videoTopic.toLowerCase().replace(/\s+/g, ''), ...keywords.split(',').map(k => k.trim()).filter(k => k)]
           }
         };
@@ -267,7 +317,7 @@ export default function Upload() {
           title: platformSpecific[platform].title,
           description: platformSpecific[platform].description,
           hashtags: platformSpecific[platform].hashtags,
-          transcription: mockTranscription
+          transcription: displayTranscription
         };
       });
 
@@ -275,8 +325,8 @@ export default function Upload() {
       setProgress(100);
       
       toast({
-        title: "Metadata generated and saved!",
-        description: "Your video metadata has been saved to the database and is now available in your history.",
+        title: "Processing Complete!",
+        description: `Metadata ${enableTranscription ? 'and transcription' : ''} generated successfully!`,
       });
 
     } catch (error) {
@@ -509,6 +559,44 @@ export default function Upload() {
                 placeholder="Enter keywords separated by commas (e.g., tutorial, tips, guide)"
                 rows={3}
               />
+            </div>
+
+            {/* Transcription Settings */}
+            <div className="border-t pt-4 space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="enable-transcription"
+                  checked={enableTranscription}
+                  onChange={(e) => setEnableTranscription(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="enable-transcription" className="flex items-center gap-2">
+                  <Subtitles className="h-4 w-4" />
+                  Enable automatic transcription and SRT generation
+                </Label>
+              </div>
+
+              {enableTranscription && (
+                <div>
+                  <Label htmlFor="transcription-language">Transcription Language</Label>
+                  <Select value={transcriptionLanguage} onValueChange={setTranscriptionLanguage}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSupportedLanguages().map((lang) => (
+                        <SelectItem key={lang.code} value={lang.code}>
+                          <div className="flex items-center gap-2">
+                            <Languages className="h-4 w-4" />
+                            {lang.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
