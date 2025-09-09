@@ -35,31 +35,52 @@ export class TranscriptionService {
 
     this.updateProgress('loading', 0, 'Loading Whisper model...');
 
-    try {
-      // Use different models based on language preference
-      const modelName = language === 'multilingual' 
-        ? 'onnx-community/whisper-tiny' 
-        : 'onnx-community/whisper-tiny.en';
+    // Use smaller model for faster loading
+    const modelName = language === 'multilingual' 
+      ? 'onnx-community/whisper-base' 
+      : 'onnx-community/whisper-base.en';
 
-      this.transcriber = await pipeline(
-        'automatic-speech-recognition',
-        modelName,
-        {
-          device: 'webgpu', // Fallback to CPU if WebGPU not available
-          progress_callback: (progress: any) => {
-            if (progress.status === 'progress') {
-              this.updateProgress('loading', progress.progress * 100, 'Loading model...');
-            }
+    try {
+      // Try WebGPU first
+      this.updateProgress('loading', 10, 'Attempting WebGPU acceleration...');
+      
+      this.transcriber = await this.tryLoadModel(modelName, 'webgpu');
+      this.updateProgress('loading', 100, 'Model loaded with WebGPU acceleration');
+      return this.transcriber;
+      
+    } catch (webgpuError) {
+      console.warn('WebGPU failed, falling back to CPU:', webgpuError);
+      
+      try {
+        this.updateProgress('loading', 30, 'WebGPU unavailable, using CPU...');
+        
+        this.transcriber = await this.tryLoadModel(modelName, 'cpu');
+        this.updateProgress('loading', 100, 'Model loaded with CPU');
+        return this.transcriber;
+        
+      } catch (cpuError) {
+        console.error('Both WebGPU and CPU failed:', cpuError);
+        throw new Error('Failed to load Whisper model. Please check your internet connection and try again.');
+      }
+    }
+  }
+
+  private async tryLoadModel(modelName: string, device: 'webgpu' | 'cpu') {
+    return await pipeline(
+      'automatic-speech-recognition',
+      modelName,
+      {
+        device,
+        progress_callback: (progress: any) => {
+          if (progress.status === 'progress') {
+            const baseProgress = device === 'webgpu' ? 10 : 30;
+            const progressRange = device === 'webgpu' ? 70 : 60;
+            const currentProgress = baseProgress + (progress.progress * progressRange);
+            this.updateProgress('loading', currentProgress, `Loading model (${device.toUpperCase()})...`);
           }
         }
-      ) as any;
-
-      this.updateProgress('loading', 100, 'Model loaded successfully');
-      return this.transcriber;
-    } catch (error) {
-      console.error('Error loading transcriber:', error);
-      throw new Error('Failed to load Whisper model. Please check your internet connection.');
-    }
+      }
+    ) as any;
   }
 
   async transcribeAudio(
