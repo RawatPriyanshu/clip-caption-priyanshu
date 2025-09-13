@@ -1,6 +1,6 @@
 # AI Video Metadata Generator
 
-**URL**: https://lovable.dev/projects/f1ec8669-588c-4500-ac1f-c97b70622d73
+**URL**: https://clip-caption.netlify.app/
 
 ## Overview
 
